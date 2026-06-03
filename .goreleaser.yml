@@ -30,7 +30,7 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        formats: [zip]      # replaces deprecated 'format: zip'
+        formats: [zip] # replaces deprecated 'format: zip'
     files:
       - README.md
       - LICENSE
@@ -54,7 +54,13 @@ release:
   github:
     owner: devlopersabbir
     name: tview-cli
-  mode: keep
   draft: false
   prerelease: auto
   name_template: "{{ .Tag }}"
+  header: |
+    ## Release {{ .Tag }}
+
+    ### 🚀 What's Changed
+  footer: |
+    ---
+    Built by **Sabbir Hossain Shuvo** · [github.com/devlopersabbir](https://github.com/devlopersabbir)
