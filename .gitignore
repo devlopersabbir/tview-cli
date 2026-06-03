@@ -1,5 +1,6 @@
-# Binary output
-tview
+# Binary output (/tview is the compiled binary at root; anchored so cmd/tview/ is NOT ignored)
+/tview
+/tview.exe
 dist/
 
 # Go tools
