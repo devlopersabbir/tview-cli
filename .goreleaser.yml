@@ -70,7 +70,7 @@ homebrew_casks:
       - tview
     repository:
       owner: devlopersabbir
-      name: homebrew-tap
+      name: tview-cli
       token: "{{ .Env.PACKAGE_MANAGER_GITHUB_TOKEN }}"
     directory: Casks
     homepage: https://github.com/devlopersabbir/tview-cli
@@ -81,7 +81,7 @@ scoops:
   - name: tview
     repository:
       owner: devlopersabbir
-      name: homebrew-tap
+      name: tview-cli
       token: "{{ .Env.PACKAGE_MANAGER_GITHUB_TOKEN }}"
     directory: bucket
     homepage: https://github.com/devlopersabbir/tview-cli

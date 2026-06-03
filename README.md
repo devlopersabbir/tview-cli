@@ -26,7 +26,8 @@ BTCUSDT  |  1H ▲ 67,420.00
 ### macOS
 
 ```bash
-brew install --cask devlopersabbir/tap/tview
+brew tap devlopersabbir/tview-cli https://github.com/devlopersabbir/tview-cli
+brew install --cask tview
 ```
 
 ### Linux
@@ -44,7 +45,7 @@ RPM and APK packages are also available from [GitHub Releases](https://github.co
 Download the Windows `.zip` from [GitHub Releases](https://github.com/devlopersabbir/tview-cli/releases), or install with Scoop:
 
 ```powershell
-scoop bucket add devlopersabbir https://github.com/devlopersabbir/homebrew-tap
+scoop bucket add devlopersabbir-tview https://github.com/devlopersabbir/tview-cli
 scoop install tview
 ```
 
