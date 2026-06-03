@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "Casks/**"
+      - "bucket/**"
   pull_request:
 
 permissions:
