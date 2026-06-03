@@ -54,13 +54,7 @@ release:
   github:
     owner: devlopersabbir
     name: tview-cli
+  mode: keep
   draft: false
   prerelease: auto
   name_template: "{{ .Tag }}"
-  header: |
-    ## Release {{ .Tag }}
-
-    ### 🚀 What's Changed
-  footer: |
-    ---
-    Built by **Sabbir Hossain Shuvo** · [github.com/devlopersabbir](https://github.com/devlopersabbir)
