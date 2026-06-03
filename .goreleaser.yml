@@ -28,15 +28,65 @@ builds:
 archives:
   - id: tview
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
     format_overrides:
       - goos: windows
-        formats: [zip] # replaces deprecated 'format: zip'
+        formats:
+          - zip
     files:
       - README.md
       - LICENSE
 
 checksum:
   name_template: "checksums.txt"
+
+nfpms:
+  - id: linux-packages
+    package_name: tview
+    vendor: Sabbir Hossain Shuvo
+    homepage: https://github.com/devlopersabbir/tview-cli
+    maintainer: Sabbir Hossain Shuvo <devlopersabbir@users.noreply.github.com>
+    description: Terminal candlestick chart viewer powered by Bybit market data.
+    license: MIT
+    section: utils
+    priority: optional
+    bindir: /usr/bin
+    formats:
+      - deb
+      - rpm
+      - apk
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/tview/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/tview/README.md
+
+homebrew_casks:
+  - name: tview
+    ids:
+      - tview
+    binaries:
+      - tview
+    repository:
+      owner: devlopersabbir
+      name: homebrew-tap
+      token: "{{ .Env.PACKAGE_MANAGER_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/devlopersabbir/tview-cli
+    description: Terminal candlestick chart viewer powered by Bybit market data.
+    license: MIT
+
+scoops:
+  - name: tview
+    repository:
+      owner: devlopersabbir
+      name: homebrew-tap
+      token: "{{ .Env.PACKAGE_MANAGER_GITHUB_TOKEN }}"
+    directory: bucket
+    homepage: https://github.com/devlopersabbir/tview-cli
+    description: Terminal candlestick chart viewer powered by Bybit market data.
+    license: MIT
 
 changelog:
   sort: asc
