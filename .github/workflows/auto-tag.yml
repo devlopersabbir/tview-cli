@@ -1,0 +1,60 @@
+name: Auto Tag
+
+# Runs on every push to main. Reads the latest semver tag, bumps the patch
+# version by 1, pushes a new tag (e.g. v0.0.1 → v0.0.2), which then
+# triggers the Release workflow automatically.
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:           # skip pure-docs commits to avoid infinite loops
+      - "**.md"
+      - "LICENSE"
+
+permissions:
+  contents: write           # needed to push the new tag
+
+jobs:
+  bump-version:
+    name: Bump patch version & push tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # full history so we can see all existing tags
+
+      - name: Compute next patch version
+        id: version
+        run: |
+          # Get the latest semver tag; default to v0.0.0 if none exists yet
+          LATEST=$(git tag --list 'v*.*.*' --sort=-version:refname | head -n1)
+          if [ -z "$LATEST" ]; then
+            LATEST="v0.0.0"
+          fi
+
+          echo "Latest tag: $LATEST"
+
+          # Strip the leading 'v' and split into parts
+          VERSION="${LATEST#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+          # Increment patch
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_TAG="v${MAJOR}.${MINOR}.${NEXT_PATCH}"
+
+          echo "Next tag: $NEXT_TAG"
+          echo "tag=$NEXT_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push new tag
+        env:
+          NEXT_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$NEXT_TAG"
+          git push origin "$NEXT_TAG"

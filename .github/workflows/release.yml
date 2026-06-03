@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "v*.*.*"   # triggered by auto-tag.yml which bumps the patch on every main push
 
 permissions:
   contents: write
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full history so GoReleaser can build the changelog
+          fetch-depth: 0 # full history so GoReleaser can build the changelog
 
       - name: Set up Go
         uses: actions/setup-go@v5
