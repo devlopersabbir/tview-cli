@@ -2,22 +2,22 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"   # triggered by auto-tag.yml which bumps the patch on every main push
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   release:
-    name: Build & Release Binaries
+    name: Build and release
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # full history so GoReleaser can build the changelog
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -25,11 +25,101 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean
+      # ── 1. Compute next patch version & write release notes ──────────────
+      - name: Prepare release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_tag="$(git tag -l 'v*.*.*' --sort=-v:refname | head -n 1 || true)"
+
+          if [[ -z "$latest_tag" ]]; then
+            next_tag="v0.0.1"
+            range=""
+          else
+            version="${latest_tag#v}"
+            IFS='.' read -r major minor patch <<< "$version"
+            patch="$((patch + 1))"
+            next_tag="v${major}.${minor}.${patch}"
+            range="${latest_tag}..HEAD"
+          fi
+
+          {
+            echo "tag=$next_tag"
+            echo "previous_tag=$latest_tag"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Release $next_tag"
+            echo
+            echo "### 🚀 What's Changed"
+            if [[ -z "$range" ]]; then
+              git log --pretty='- %s (%h)'
+            else
+              git log "$range" --pretty='- %s (%h)'
+            fi
+            echo
+            echo "---"
+            echo "Built by **Sabbir Hossain Shuvo** · [github.com/devlopersabbir](https://github.com/devlopersabbir)"
+          } > RELEASE_NOTES.md
+
+      # ── 2. Build cross-platform binaries ────────────────────────────────
+      - name: Build binaries
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.tag }}
+          COMMIT:  ${{ github.sha }}
+          DATE:    ${{ github.event.head_commit.timestamp }}
+          LDFLAGS: >-
+            -s -w
+            -X main.version=${{ steps.version.outputs.tag }}
+            -X main.commit=${{ github.sha }}
+            -X main.date=${{ github.event.head_commit.timestamp }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          targets=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+            "windows/amd64"
+            "windows/arm64"
+          )
+
+          for target in "${targets[@]}"; do
+            GOOS="${target%/*}"
+            GOARCH="${target#*/}"
+            output="dist/tview_${GOOS}_${GOARCH}"
+            [[ "$GOOS" == "windows" ]] && output="${output}.exe"
+
+            echo "→ Building $output"
+            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
+              go build -ldflags "$LDFLAGS" -o "$output" ./cmd/tview
+          done
+
+          ls -lh dist/
+
+      # ── 3. Tag the commit ────────────────────────────────────────────────
+      - name: Create git tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      # ── 4. Publish GitHub Release with binaries attached ─────────────────
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.version.outputs.tag }}" \
+            dist/* \
+            --title "${{ steps.version.outputs.tag }}" \
+            --notes-file RELEASE_NOTES.md
