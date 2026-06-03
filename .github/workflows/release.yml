@@ -25,7 +25,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # ── 1. Compute next patch version & write release notes ──────────────
       - name: Prepare release version
         id: version
         shell: bash
@@ -36,73 +35,15 @@ jobs:
 
           if [[ -z "$latest_tag" ]]; then
             next_tag="v0.0.1"
-            range=""
           else
             version="${latest_tag#v}"
             IFS='.' read -r major minor patch <<< "$version"
             patch="$((patch + 1))"
             next_tag="v${major}.${minor}.${patch}"
-            range="${latest_tag}..HEAD"
           fi
 
-          {
-            echo "tag=$next_tag"
-            echo "previous_tag=$latest_tag"
-          } >> "$GITHUB_OUTPUT"
+          echo "tag=$next_tag" >> "$GITHUB_OUTPUT"
 
-          {
-            echo "## Release $next_tag"
-            echo
-            echo "### 🚀 What's Changed"
-            if [[ -z "$range" ]]; then
-              git log --pretty='- %s (%h)'
-            else
-              git log "$range" --pretty='- %s (%h)'
-            fi
-            echo
-            echo "---"
-            echo "Built by **Sabbir Hossain Shuvo** · [github.com/devlopersabbir](https://github.com/devlopersabbir)"
-          } > RELEASE_NOTES.md
-
-      # ── 2. Build cross-platform binaries ────────────────────────────────
-      - name: Build binaries
-        shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.tag }}
-          COMMIT:  ${{ github.sha }}
-          DATE:    ${{ github.event.head_commit.timestamp }}
-          LDFLAGS: >-
-            -s -w
-            -X main.version=${{ steps.version.outputs.tag }}
-            -X main.commit=${{ github.sha }}
-            -X main.date=${{ github.event.head_commit.timestamp }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-
-          targets=(
-            "linux/amd64"
-            "linux/arm64"
-            "darwin/amd64"
-            "darwin/arm64"
-            "windows/amd64"
-            "windows/arm64"
-          )
-
-          for target in "${targets[@]}"; do
-            GOOS="${target%/*}"
-            GOARCH="${target#*/}"
-            output="dist/tview_${GOOS}_${GOARCH}"
-            [[ "$GOOS" == "windows" ]] && output="${output}.exe"
-
-            echo "→ Building $output"
-            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
-              go build -ldflags "$LDFLAGS" -o "$output" ./cmd/tview
-          done
-
-          ls -lh dist/
-
-      # ── 3. Tag the commit ────────────────────────────────────────────────
       - name: Create git tag
         shell: bash
         run: |
@@ -112,14 +53,12 @@ jobs:
           git tag "${{ steps.version.outputs.tag }}"
           git push origin "${{ steps.version.outputs.tag }}"
 
-      # ── 4. Publish GitHub Release with binaries attached ─────────────────
-      - name: Publish GitHub Release
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
         env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh release create "${{ steps.version.outputs.tag }}" \
-            dist/* \
-            --title "${{ steps.version.outputs.tag }}" \
-            --notes-file RELEASE_NOTES.md
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.tag }}
