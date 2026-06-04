@@ -1,19 +1,19 @@
 {
-    "version": "0.0.52",
+    "version": "0.0.53",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.52/tview_windows_amd64.zip",
+            "url": "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.53/tview_windows_amd64.zip",
             "bin": [
                 "tview.exe"
             ],
-            "hash": "62c55949b8d36c3c4da27a4487dd5bc85d14c3e51b19468485d8980fb169e38e"
+            "hash": "ed427ff40f9680586375be78db6d3c0dff30fd029ea2923d93c1d2a330f0625e"
         },
         "arm64": {
-            "url": "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.52/tview_windows_arm64.zip",
+            "url": "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.53/tview_windows_arm64.zip",
             "bin": [
                 "tview.exe"
             ],
-            "hash": "5ed33bb538ab6a7e9fef259d27f5c4c6eb331995ae7c627e6f7e29fab4be0857"
+            "hash": "6d241ba700f6d08639b3097594af4d4caa7003c1f4228ed9c64a73e4a499554a"
         }
     },
     "homepage": "https://github.com/devlopersabbir/tview-cli",
