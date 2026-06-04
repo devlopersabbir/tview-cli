@@ -24,6 +24,27 @@ func decimalsFor(price float64) int {
 	}
 }
 
+// compactNumber formats large market values so footer labels stay readable.
+func compactNumber(value float64) string {
+	abs := math.Abs(value)
+	units := []struct {
+		value  float64
+		suffix string
+	}{
+		{1_000_000_000_000, "T"},
+		{1_000_000_000, "B"},
+		{1_000_000, "M"},
+		{1_000, "K"},
+	}
+
+	for _, unit := range units {
+		if abs >= unit.value {
+			return fmt.Sprintf("%.2f%s", value/unit.value, unit.suffix)
+		}
+	}
+	return fmt.Sprintf("%.2f", value)
+}
+
 // priceToRowFunc returns a closure that maps a price to a chart row index.
 func priceToRowFunc(maxPrice, priceRange float64) func(float64) int {
 	return func(p float64) int {
@@ -72,33 +93,51 @@ func Print(symbol, interval string, candles []model.Candle) {
 	if !latest.IsBull {
 		arrow = "▼"
 	}
+	change := latest.Close - latest.Open
+	changePct := 0.0
+	if latest.Open != 0 {
+		changePct = change / latest.Open * 100
+	}
 
 	decimals := decimalsFor(latest.Close)
 	priceFmt := fmt.Sprintf("%%.%df", decimals)
+	priceText := fmt.Sprintf(priceFmt, latest.Close)
+	rangeText := fmt.Sprintf(priceFmt+" - "+priceFmt, minPrice, maxPrice)
+	latestVolText := compactNumber(latest.Volume)
+	maxVolText := compactNumber(maxVolume)
 
 	// ── Header ────────────────────────────────────────────────────────────
 	fmt.Println()
-	fmt.Printf("%s%s%s  %s•%s  %s%s %s%s  %s%s\n",
+	fmt.Printf("%s%s%s  %s%s%s  %s%s%s %s%s%s  %s%+.2f%%%s\n",
 		color.Bold+color.White, symbol, color.Reset,
-		color.Gray, color.Reset,
-		statusColor+color.Bold, strings.ToUpper(interval), color.Reset,
-		color.Gray, arrow+" "+fmt.Sprintf(priceFmt, latest.Close),
-		color.Reset,
+		color.DarkGray, "•", color.Reset,
+		color.Gray, strings.ToUpper(interval), color.Reset,
+		statusColor+color.Bold, arrow+" "+priceText, color.Reset,
+		statusColor, changePct, color.Reset,
 	)
-	fmt.Printf("%s  H: %s"+priceFmt+"%s  L: %s"+priceFmt+"%s\n\n",
-		color.DarkGray,
-		color.White, maxPrice, color.Reset+color.DarkGray,
-		color.White, minPrice, color.Reset,
+	fmt.Printf("%s  O%s "+priceFmt+"  %sH%s "+priceFmt+"  %sL%s "+priceFmt+"  %sV%s %s  %sRange%s %s\n\n",
+		color.Gray, color.Reset, latest.Open,
+		color.Gray, color.Reset, latest.High,
+		color.Gray, color.Reset, latest.Low,
+		color.Gray, color.Reset, latestVolText,
+		color.Gray, color.Reset, rangeText,
 	)
 
 	highRow := priceToRow(candles[highIdx].High)
 	lowRow := priceToRow(candles[lowIdx].Low)
 	n := len(candles)
+	axisWidth := n + 1
+
+	fmt.Printf("%s          ┌%s", color.Gray, color.DarkGray)
+	for i := 0; i < axisWidth; i++ {
+		fmt.Print("─")
+	}
+	fmt.Printf("%s\n", color.Reset)
 
 	// ── Candlestick grid ──────────────────────────────────────────────────
 	for y := 0; y < model.ChartHeight; y++ {
 		price := maxPrice - priceRange*float64(y)/float64(model.ChartHeight)
-		fmt.Printf("%s%9.*f │%s", color.Gray, decimals, price, color.Reset)
+		fmt.Printf("%s%9.*f │%s ", color.Gray, decimals, price, color.Reset)
 
 		for i, c := range candles {
 			col := color.For(c.IsBull)
@@ -126,12 +165,12 @@ func Print(symbol, interval string, candles []model.Candle) {
 				fmt.Print(" ")
 			}
 		}
-		fmt.Println()
+		fmt.Printf("%s│%s\n", color.Gray, color.Reset)
 	}
 
 	// ── X divider ─────────────────────────────────────────────────────────
 	fmt.Printf("%s──────────┼%s", color.Gray, color.DarkGray)
-	for i := 0; i < n; i++ {
+	for i := 0; i < axisWidth; i++ {
 		fmt.Print("─")
 	}
 	fmt.Printf("%s\n", color.Reset)
@@ -145,18 +184,27 @@ func Print(symbol, interval string, candles []model.Candle) {
 		}
 		for _, c := range candles {
 			col := color.For(c.IsBull)
-			barH := int(math.Round(float64(model.VolumeHeight) * c.Volume / maxVolume))
+			barH := 0
+			if maxVolume > 0 {
+				barH = int(math.Round(float64(model.VolumeHeight) * c.Volume / maxVolume))
+			}
 			if (model.VolumeHeight - y) <= barH {
 				fmt.Printf("%s▄%s", col, color.Reset)
 			} else {
 				fmt.Print(" ")
 			}
 		}
-		fmt.Println()
+		fmt.Printf("%s│%s\n", color.Gray, color.Reset)
 	}
 
 	// ── Time axis ─────────────────────────────────────────────────────────
-	fmt.Printf("%s          │%s ", color.Gray, color.Reset)
+	fmt.Printf("%s          └%s", color.Gray, color.DarkGray)
+	for i := 0; i < axisWidth; i++ {
+		fmt.Print("─")
+	}
+	fmt.Printf("%s\n", color.Reset)
+
+	fmt.Printf("%s           %s", color.Gray, color.Reset)
 	skip := 0
 	for _, c := range candles {
 		if skip == 0 {
@@ -171,9 +219,10 @@ func Print(symbol, interval string, candles []model.Candle) {
 	fmt.Println()
 
 	// ── Footer ────────────────────────────────────────────────────────────
-	fmt.Printf("\n%s  Price%s %s"+priceFmt+"%s    %sVol%s %.2f\n\n",
-		color.Gray, color.Reset,
-		statusColor+color.Bold, latest.Close, color.Reset,
-		color.Gray, color.Reset, latest.Volume,
+	fmt.Printf("\n%s  Last%s %s%s%s   %sMove%s %s%+.2f%%%s   %sVol%s %s   %sMax Vol%s %s\n\n",
+		color.Gray, color.Reset, statusColor+color.Bold, priceText, color.Reset,
+		color.Gray, color.Reset, statusColor+color.Bold, changePct, color.Reset,
+		color.Gray, color.Reset, latestVolText,
+		color.Gray, color.Reset, maxVolText,
 	)
 }
