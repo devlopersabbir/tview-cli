@@ -27,7 +27,7 @@ BTCUSDT  |  1H ▲ 67,420.00
 
 ```bash
 brew tap devlopersabbir/tview-cli https://github.com/devlopersabbir/tview-cli
-brew install --cask tview
+brew install tview
 ```
 
 ### Linux

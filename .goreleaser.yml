@@ -62,20 +62,29 @@ nfpms:
       - src: README.md
         dst: /usr/share/doc/tview/README.md
 
-homebrew_casks:
+brews:
   - name: tview
     ids:
-      - tview
-    binaries:
       - tview
     repository:
       owner: devlopersabbir
       name: tview-cli
       token: "{{ .Env.PACKAGE_MANAGER_GITHUB_TOKEN }}"
-    directory: Casks
+    directory: Formula
     homepage: https://github.com/devlopersabbir/tview-cli
     description: Terminal candlestick chart viewer powered by Bybit market data.
     license: MIT
+    install: |
+      bin.install "tview"
+    post_install: |
+      quiet_system "xattr", "-d", "com.apple.quarantine", "#{bin}/tview" if OS.mac?
+      quiet_system "xattr", "-d", "com.apple.provenance", "#{bin}/tview" if OS.mac?
+    caveats: |
+      The macOS binary is not Apple-notarized yet. If Gatekeeper blocks it, run:
+        xattr -d com.apple.quarantine #{bin}/tview 2>/dev/null || true
+        xattr -d com.apple.provenance #{bin}/tview 2>/dev/null || true
+    test: |
+      system "#{bin}/tview", "version"
 
 scoops:
   - name: tview

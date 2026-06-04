@@ -32,8 +32,9 @@ func main() {
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "tview [symbol] [interval]",
-		Short: "Terminal candlestick chart viewer — powered by Bybit",
+		Use:     "tview [symbol] [interval]",
+		Short:   "Terminal candlestick chart viewer — powered by Bybit",
+		Version: version,
 		Long: fmt.Sprintf(`%stview%s — Real-time crypto candlestick charts in your terminal.
 
   Built by %sSabbir Hossain Shuvo%s  •  github.com/devlopersabbir
@@ -51,6 +52,7 @@ func newRootCmd() *cobra.Command {
 		RunE: runChart,
 	}
 
+	root.SetVersionTemplate(versionOutput())
 	root.AddCommand(newVersionCmd())
 	return root
 }
@@ -81,15 +83,17 @@ func newVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Printf("%stview%s  version %s%s%s\n",
-				color.Bold+color.White, color.Reset,
-				color.Yellow, version, color.Reset,
-			)
-			fmt.Printf("  commit  %s\n", commit)
-			fmt.Printf("  built   %s\n", date)
-			fmt.Printf("  author  %sSabbir Hossain Shuvo%s  •  github.com/devlopersabbir\n",
-				color.Green+color.Bold, color.Reset,
-			)
+			fmt.Print(versionOutput())
 		},
 	}
+}
+
+func versionOutput() string {
+	return fmt.Sprintf("%stview%s  version %s%s%s\n  commit  %s\n  built   %s\n  author  %sSabbir Hossain Shuvo%s  •  github.com/devlopersabbir\n",
+		color.Bold+color.White, color.Reset,
+		color.Yellow, version, color.Reset,
+		commit,
+		date,
+		color.Green+color.Bold, color.Reset,
+	)
 }

@@ -36,12 +36,12 @@ jobs:
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: "v2.15.4"
           args: check
 
       - name: Build snapshot release
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: "v2.15.4"
           args: release --snapshot --clean --skip=publish
