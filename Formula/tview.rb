@@ -5,21 +5,21 @@
 class Tview < Formula
   desc "Terminal candlestick chart viewer powered by Bybit market data."
   homepage "https://github.com/devlopersabbir/tview-cli"
-  version "0.0.56"
+  version "0.0.57"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.56/tview_darwin_amd64.tar.gz"
-      sha256 "6592776b1c2b0e9a0ea2adf80cfe27849d4b8ac8372ada32843140cfc7264f4b"
+      url "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.57/tview_darwin_amd64.tar.gz"
+      sha256 "16799bd6b9e5718fe6c769bada259d827f735d215db6217c72629f6d6861ca9e"
 
       define_method(:install) do
         bin.install "tview"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.56/tview_darwin_arm64.tar.gz"
-      sha256 "838e950ebabb201ee622143cdc89650333dde8a642b240ca5f3487580c3db80e"
+      url "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.57/tview_darwin_arm64.tar.gz"
+      sha256 "4e38cfe2bc7e9fbd2d200ed342e3e5b24f2b8546fb63c314b11897e25c98a5e8"
 
       define_method(:install) do
         bin.install "tview"
@@ -29,15 +29,15 @@ class Tview < Formula
 
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
-      url "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.56/tview_linux_amd64.tar.gz"
-      sha256 "d7d226e3e94f61c905f8ffdd642f320de8da9665a621af718aaac809f890a9e1"
+      url "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.57/tview_linux_amd64.tar.gz"
+      sha256 "6e5179e495aa7da1928c5931d6e44eb0b41a1e45ba1fd9d5288d0583ae35ec0d"
       define_method(:install) do
         bin.install "tview"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.56/tview_linux_arm64.tar.gz"
-      sha256 "a4ebe35dd0545d4f58e642f566dd02d83df31c7b04841e8bba269c9c2de7b133"
+      url "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.57/tview_linux_arm64.tar.gz"
+      sha256 "ea18869f46c97bdee6c3be00a78b4a410939bbcdadcd48aa71e3ad0c0aae9a1d"
       define_method(:install) do
         bin.install "tview"
       end
