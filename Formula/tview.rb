@@ -51,6 +51,13 @@ class Tview < Formula
 
   def caveats
     <<~EOS
+      tview was installed to:
+        #{bin}/tview
+
+      If your shell cannot find tview, make sure Homebrew's bin directory is in your PATH:
+        eval "$(/opt/homebrew/bin/brew shellenv)"   # Apple Silicon
+        eval "$(/usr/local/bin/brew shellenv)"      # Intel Mac
+
       The macOS binary is not Apple-notarized yet. If Gatekeeper blocks it, run:
         xattr -d com.apple.quarantine #{bin}/tview 2>/dev/null || true
         xattr -d com.apple.provenance #{bin}/tview 2>/dev/null || true

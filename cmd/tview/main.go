@@ -12,9 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/devlopersabbir/tview/internal/chart"
-	"github.com/devlopersabbir/tview/internal/color"
-	"github.com/devlopersabbir/tview/internal/exchange"
+	"github.com/devlopersabbir/tview-cli/internal/chart"
+	"github.com/devlopersabbir/tview-cli/internal/color"
+	"github.com/devlopersabbir/tview-cli/internal/exchange"
 )
 
 // Build-time variables injected by GoReleaser / ldflags.

@@ -37,6 +37,8 @@ archives:
     files:
       - README.md
       - LICENSE
+      - scripts/install.sh
+      - scripts/install.ps1
 
 checksum:
   name_template: "checksums.txt"
@@ -62,7 +64,7 @@ nfpms:
       - src: README.md
         dst: /usr/share/doc/tview/README.md
 
-brews:
+homebrew_casks:
   - name: tview
     ids:
       - tview
@@ -70,21 +72,34 @@ brews:
       owner: devlopersabbir
       name: tview-cli
       token: "{{ .Env.PACKAGE_MANAGER_GITHUB_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: https://github.com/devlopersabbir/tview-cli
     description: Terminal candlestick chart viewer powered by Bybit market data.
     license: MIT
-    install: |
-      bin.install "tview"
-    post_install: |
-      quiet_system "xattr", "-d", "com.apple.quarantine", "#{bin}/tview" if OS.mac?
-      quiet_system "xattr", "-d", "com.apple.provenance", "#{bin}/tview" if OS.mac?
+    binaries:
+      - tview
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr",
+                         args: ["-d", "com.apple.quarantine", "#{staged_path}/tview"],
+                         sudo: false,
+                         must_succeed: false
+          system_command "/usr/bin/xattr",
+                         args: ["-d", "com.apple.provenance", "#{staged_path}/tview"],
+                         sudo: false,
+                         must_succeed: false
     caveats: |
+      tview was installed to:
+        #{HOMEBREW_PREFIX}/bin/tview
+
+      If your shell cannot find tview, make sure Homebrew's bin directory is in your PATH:
+        eval "$(/opt/homebrew/bin/brew shellenv)"   # Apple Silicon
+        eval "$(/usr/local/bin/brew shellenv)"      # Intel Mac
+
       The macOS binary is not Apple-notarized yet. If Gatekeeper blocks it, run:
-        xattr -d com.apple.quarantine #{bin}/tview 2>/dev/null || true
-        xattr -d com.apple.provenance #{bin}/tview 2>/dev/null || true
-    test: |
-      system "#{bin}/tview", "version"
+        xattr -d com.apple.quarantine #{HOMEBREW_PREFIX}/bin/tview 2>/dev/null || true
+        xattr -d com.apple.provenance #{HOMEBREW_PREFIX}/bin/tview 2>/dev/null || true
 
 scoops:
   - name: tview

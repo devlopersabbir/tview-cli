@@ -1,4 +1,4 @@
-module github.com/devlopersabbir/tview
+module github.com/devlopersabbir/tview-cli
 
 go 1.25.0
 

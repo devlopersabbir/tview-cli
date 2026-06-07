@@ -6,8 +6,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/devlopersabbir/tview/internal/color"
-	"github.com/devlopersabbir/tview/internal/model"
+	"github.com/devlopersabbir/tview-cli/internal/color"
+	"github.com/devlopersabbir/tview-cli/internal/model"
 )
 
 // decimalsFor returns appropriate decimal precision based on price magnitude.

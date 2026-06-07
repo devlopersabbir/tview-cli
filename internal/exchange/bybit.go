@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/devlopersabbir/tview/internal/model"
+	"github.com/devlopersabbir/tview-cli/internal/model"
 )
 
 const bybitBaseURL = "https://api.bybit.com/v5/market/kline"

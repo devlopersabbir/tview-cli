@@ -25,34 +25,83 @@ BTCUSDT  |  1H ▲ 67,420.00
 
 ### macOS
 
+Recommended with Homebrew:
+
 ```bash
 brew tap devlopersabbir/tview-cli https://github.com/devlopersabbir/tview-cli
-brew install tview
+brew install --cask devlopersabbir/tview-cli/tview
+tview version
+```
+
+If you installed the older formula before, remove it first:
+
+```bash
+brew uninstall tview 2>/dev/null || true
+brew install --cask devlopersabbir/tview-cli/tview
+```
+
+If `brew install` succeeds but `tview` is not found, add Homebrew to your shell PATH:
+
+```bash
+# Apple Silicon Macs
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# Intel Macs
+eval "$(/usr/local/bin/brew shellenv)"
+```
+
+Manual install without Homebrew:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/devlopersabbir/tview-cli/main/scripts/install.sh | sh
+```
+
+The manual installer places `tview` in `/usr/local/bin` when possible, otherwise in `~/.local/bin`, and prints the PATH line to add if needed.
+
+If macOS Gatekeeper blocks a manually downloaded binary, remove the quarantine attribute:
+
+```bash
+xattr -d com.apple.quarantine "$(command -v tview)" 2>/dev/null || true
+xattr -d com.apple.provenance "$(command -v tview)" 2>/dev/null || true
 ```
 
 ### Linux
 
-For Ubuntu or Debian, download the `.deb` package from [GitHub Releases](https://github.com/devlopersabbir/tview-cli/releases), then install it:
+Ubuntu or Debian:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/devlopersabbir/tview-cli/main/scripts/install.sh | sh
+```
+
+Or download the `.deb` package from [GitHub Releases](https://github.com/devlopersabbir/tview-cli/releases), then install it:
 
 ```bash
 sudo apt install ./tview_*_linux_amd64.deb
 ```
 
-RPM and APK packages are also available from [GitHub Releases](https://github.com/devlopersabbir/tview-cli/releases).
+RPM and APK packages are also available from [GitHub Releases](https://github.com/devlopersabbir/tview-cli/releases). The installer supports Linux amd64 and arm64.
 
 ### Windows
 
-Download the Windows `.zip` from [GitHub Releases](https://github.com/devlopersabbir/tview-cli/releases), or install with Scoop:
+Recommended with PowerShell:
+
+```powershell
+iwr https://raw.githubusercontent.com/devlopersabbir/tview-cli/main/scripts/install.ps1 -UseBasicParsing | iex
+```
+
+Or install with Scoop:
 
 ```powershell
 scoop bucket add devlopersabbir-tview https://github.com/devlopersabbir/tview-cli
 scoop install tview
 ```
 
+You can also download the Windows `.zip` from [GitHub Releases](https://github.com/devlopersabbir/tview-cli/releases). Put `tview.exe` in a folder on your PATH, for example `%LOCALAPPDATA%\Programs\tview\bin`.
+
 ### Go
 
 ```bash
-go install github.com/devlopersabbir/tview/cmd/tview@latest
+go install github.com/devlopersabbir/tview-cli/cmd/tview@latest
 ```
 
 ## Usage
