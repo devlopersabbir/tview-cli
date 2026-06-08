@@ -1,6 +1,7 @@
 package chart
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -25,6 +26,34 @@ func TestCompactNumber(t *testing.T) {
 				t.Fatalf("compactNumber(%v) = %q, want %q", tt.value, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRenderPNG(t *testing.T) {
+	candles := make([]model.Candle, 12)
+	for i := range candles {
+		open := 100.0 + float64(i)
+		close := open + 2
+		if i%2 == 0 {
+			close = open - 2
+		}
+		candles[i] = model.Candle{
+			Open:      open,
+			High:      open + 5,
+			Low:       open - 5,
+			Close:     close,
+			Volume:    10 + float64(i),
+			IsBull:    close >= open,
+			Timestamp: time.Date(2026, time.June, 8, 9, i*5, 0, 0, time.UTC),
+		}
+	}
+
+	got, err := RenderPNG("BTCUSDT", "5m", candles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(got, []byte{0x89, 'P', 'N', 'G'}) {
+		t.Fatalf("RenderPNG did not return PNG bytes")
 	}
 }
 

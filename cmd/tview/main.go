@@ -8,6 +8,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"html"
 	"os"
 	"os/signal"
 	"strings"
@@ -131,9 +132,9 @@ func watchIndicator(symbol, interval string) error {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	var previous *bool
+	var state indicatorWatchState
 	for {
-		if err := checkIndicator(symbol, interval, client, &previous); err != nil {
+		if err := checkIndicator(symbol, interval, client, &state); err != nil {
 			fmt.Fprintf(os.Stderr, "%s%s%s\n", color.Red, err, color.Reset)
 		}
 
@@ -146,6 +147,20 @@ func watchIndicator(symbol, interval string) error {
 		}
 	}
 }
+
+type indicatorWatchState struct {
+	initialized bool
+	signal      indicatorSignal
+	markerTime  time.Time
+}
+
+type indicatorSignal int
+
+const (
+	indicatorNone indicatorSignal = iota
+	indicatorBullish
+	indicatorBearish
+)
 
 func loadDotenv(path string) {
 	file, err := os.Open(path)
@@ -177,58 +192,150 @@ func loadDotenv(path string) {
 	}
 }
 
-func checkIndicator(symbol, interval string, client notify.Telegram, previous **bool) error {
-	candles, err := exchange.FetchBybit(symbol, interval, 2)
+func checkIndicator(symbol, interval string, client notify.Telegram, state *indicatorWatchState) error {
+	candles, err := exchange.FetchBybit(symbol, interval, model.NumCandles)
 	if err != nil {
 		return err
 	}
-	if len(candles) == 0 {
-		return fmt.Errorf("no data for %s", symbol)
+	if len(candles) < 2 {
+		return fmt.Errorf("not enough data for %s", symbol)
 	}
 
-	latest := candles[len(candles)-1]
-	state := latest.IsBull
-	label := indicatorLabel(state)
-	timestamp := latest.Timestamp.Local().Format("Jan 02 3:04PM")
+	marker, ok := latestClosedMarker(candles)
+	if !ok {
+		return fmt.Errorf("no closed marker data for %s", symbol)
+	}
+	closed, ok := latestClosedCandle(candles)
+	if !ok {
+		return fmt.Errorf("not enough data for %s", symbol)
+	}
+	signal := marker.Signal
+	label := indicatorSignalLabel(signal)
+	timestamp := marker.Candle.Timestamp.Local().Format("Jan 02 3:04PM")
 
-	if *previous == nil {
-		*previous = &state
-		fmt.Printf("%s[%s]%s %s %s baseline: %s at %.2f\n",
+	if !state.initialized {
+		state.initialized = true
+		state.signal = signal
+		state.markerTime = marker.Candle.Timestamp
+		fmt.Printf("%s[%s]%s %s %s baseline marker: %s at %.2f (%s)\n",
 			color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
-			symbol, strings.ToUpper(interval), label, latest.Close,
+			symbol, strings.ToUpper(interval), label, marker.Candle.Close, timestamp,
 		)
 		return nil
 	}
 
-	if **previous == state {
-		fmt.Printf("%s[%s]%s %s %s still %s at %.2f\n",
+	if !marker.Candle.Timestamp.After(state.markerTime) {
+		fmt.Printf("%s[%s]%s %s %s marker still %s at %.2f (%s); latest closed %.2f\n",
 			color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
-			symbol, strings.ToUpper(interval), label, latest.Close,
+			symbol, strings.ToUpper(interval), label, marker.Candle.Close, timestamp, closed.Close,
 		)
 		return nil
 	}
 
-	oldLabel := indicatorLabel(**previous)
-	message := fmt.Sprintf(
-		"%s %s changed: %s -> %s\nPrice: %.2f\nCandle: %s",
-		symbol,
-		strings.ToUpper(interval),
-		oldLabel,
-		label,
-		latest.Close,
-		timestamp,
-	)
+	if state.signal == signal {
+		state.markerTime = marker.Candle.Timestamp
+		fmt.Printf("%s[%s]%s %s %s new marker but still %s at %.2f (%s)\n",
+			color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
+			symbol, strings.ToUpper(interval), label, marker.Candle.Close, timestamp,
+		)
+		return nil
+	}
 
-	if err := client.Send(message); err != nil {
+	oldLabel := indicatorSignalLabel(state.signal)
+	message := indicatorMessage(symbol, interval, oldLabel, label, marker.Candle, timestamp)
+	preview, err := chart.RenderPNG(symbol, interval, candles)
+	if err != nil {
+		return fmt.Errorf("render chart preview: %w", err)
+	}
+
+	if err := client.SendPhoto(fmt.Sprintf("%s-%s.png", symbol, strings.ToLower(interval)), preview, message); err != nil {
 		return err
 	}
 
-	*previous = &state
-	fmt.Printf("%s[%s]%s notified: %s -> %s at %.2f\n",
+	state.signal = signal
+	state.markerTime = marker.Candle.Timestamp
+	fmt.Printf("%s[%s]%s notified yellow marker: %s -> %s at %.2f (%s)\n",
 		color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
-		oldLabel, label, latest.Close,
+		oldLabel, label, marker.Candle.Close, timestamp,
 	)
 	return nil
+}
+
+type indicatorMarker struct {
+	Signal indicatorSignal
+	Candle model.Candle
+}
+
+func latestClosedMarker(candles []model.Candle) (indicatorMarker, bool) {
+	if len(candles) < 2 {
+		return indicatorMarker{}, false
+	}
+
+	closedCandles := candles[:len(candles)-1]
+	highIdx, lowIdx := 0, 0
+	maxHigh, minLow := closedCandles[0].High, closedCandles[0].Low
+	for i, c := range closedCandles {
+		if c.High > maxHigh {
+			maxHigh = c.High
+			highIdx = i
+		}
+		if c.Low < minLow {
+			minLow = c.Low
+			lowIdx = i
+		}
+	}
+
+	if lowIdx > highIdx {
+		return indicatorMarker{Signal: indicatorBullish, Candle: closedCandles[lowIdx]}, true
+	}
+	return indicatorMarker{Signal: indicatorBearish, Candle: closedCandles[highIdx]}, true
+}
+
+func latestClosedMarkerSignal(candles []model.Candle) indicatorSignal {
+	marker, ok := latestClosedMarker(candles)
+	if !ok {
+		return indicatorNone
+	}
+	return marker.Signal
+}
+
+func latestClosedCandle(candles []model.Candle) (model.Candle, bool) {
+	if len(candles) < 2 {
+		return model.Candle{}, false
+	}
+
+	// The latest Bybit candle can still be forming, so use the previous candle
+	// as the confirmed signal source to avoid intrabar notification noise.
+	return candles[len(candles)-2], true
+}
+
+func indicatorMessage(symbol, interval, oldLabel, newLabel string, candle model.Candle, timestamp string) string {
+	change := candle.Close - candle.Open
+	changePct := 0.0
+	if candle.Open != 0 {
+		changePct = change / candle.Open * 100
+	}
+
+	return fmt.Sprintf(
+		"<b>%s %s indicator changed</b>\n\n"+
+			"%s -> <b>%s</b>\n"+
+			"Price: <b>%.2f</b>\n"+
+			"Move: <b>%+.2f%%</b>\n"+
+			"Time: %s\n\n"+
+			"<pre>O %.2f\nH %.2f\nL %.2f\nC %.2f\nV %.2f</pre>",
+		html.EscapeString(symbol),
+		html.EscapeString(strings.ToUpper(interval)),
+		html.EscapeString(oldLabel),
+		html.EscapeString(newLabel),
+		candle.Close,
+		changePct,
+		html.EscapeString(timestamp),
+		candle.Open,
+		candle.High,
+		candle.Low,
+		candle.Close,
+		candle.Volume,
+	)
 }
 
 func indicatorLabel(isBull bool) string {
@@ -236,6 +343,17 @@ func indicatorLabel(isBull bool) string {
 		return "BULLISH"
 	}
 	return "BEARISH"
+}
+
+func indicatorSignalLabel(signal indicatorSignal) string {
+	switch signal {
+	case indicatorBullish:
+		return "BULLISH"
+	case indicatorBearish:
+		return "BEARISH"
+	default:
+		return "NONE"
+	}
 }
 
 func fullWidthCandles() int {
