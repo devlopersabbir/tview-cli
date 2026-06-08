@@ -32,11 +32,6 @@ cask "tview" do
     skip "Auto-generated on release."
   end
 
-  preflight do
-    bin_path = "#{HOMEBREW_PREFIX}/bin/tview"
-    FileUtils.rm_f bin_path if File.exist?(bin_path) || File.symlink?(bin_path)
-  end
-
   binary "tview"
 
   postflight do
