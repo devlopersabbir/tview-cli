@@ -79,6 +79,10 @@ homebrew_casks:
     binaries:
       - tview
     hooks:
+      pre:
+        install: |
+          bin_path = "#{HOMEBREW_PREFIX}/bin/tview"
+          FileUtils.rm_f bin_path if File.exist?(bin_path) || File.symlink?(bin_path)
       post:
         install: |
           system_command "/usr/bin/xattr",
