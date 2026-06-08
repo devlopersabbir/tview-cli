@@ -6,9 +6,12 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/devlopersabbir/tview-cli/internal/color"
 	"github.com/devlopersabbir/tview-cli/internal/exchange"
 	"github.com/devlopersabbir/tview-cli/internal/model"
+	"github.com/devlopersabbir/tview-cli/internal/notify"
 )
 
 // Build-time variables injected by GoReleaser / ldflags.
@@ -36,6 +40,7 @@ func main() {
 func newRootCmd() *cobra.Command {
 	var full bool
 	var box bool
+	var watch bool
 
 	root := &cobra.Command{
 		Use:     "tview [symbol] [interval]",
@@ -55,24 +60,26 @@ func newRootCmd() *cobra.Command {
   tview SOLUSDT 1h
   tview ada 1d
   tview btc 15m --full
-  tview btc 15m --box`,
+  tview btc 15m --box
+  tview btc 15m --watch`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if full && box {
 				return fmt.Errorf("--full and --box cannot be used together")
 			}
-			return runChart(cmd, args, full)
+			return runChart(cmd, args, full, watch)
 		},
 	}
 
 	root.Flags().BoolVar(&full, "full", false, "use the full terminal width for the chart")
 	root.Flags().BoolVar(&box, "box", false, "use the default boxed chart width")
+	root.Flags().BoolVar(&watch, "watch", false, "watch for bullish/bearish changes and notify Telegram")
 	root.SetVersionTemplate(versionOutput())
 	root.AddCommand(newVersionCmd())
 	return root
 }
 
-func runChart(_ *cobra.Command, args []string, full bool) error {
+func runChart(_ *cobra.Command, args []string, full, watch bool) error {
 	symbol := strings.ToUpper(args[0])
 	if !strings.HasSuffix(symbol, "USDT") {
 		symbol += "USDT"
@@ -82,6 +89,10 @@ func runChart(_ *cobra.Command, args []string, full bool) error {
 	limit := model.NumCandles
 	if full {
 		limit = fullWidthCandles()
+	}
+
+	if watch {
+		return watchIndicator(symbol, interval)
 	}
 
 	candles, err := exchange.FetchBybit(symbol, interval, limit)
@@ -96,6 +107,135 @@ func runChart(_ *cobra.Command, args []string, full bool) error {
 
 	chart.Print(symbol, interval, candles)
 	return nil
+}
+
+func watchIndicator(symbol, interval string) error {
+	loadDotenv(".env")
+
+	client := notify.Telegram{
+		Token:  os.Getenv("TELEGRAM_BOT_TOKEN"),
+		ChatID: os.Getenv("TELEGRAM_CHAT_ID"),
+	}
+	if client.Token == "" || client.ChatID == "" {
+		return fmt.Errorf("set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID before using --watch")
+	}
+
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+	defer signal.Stop(interrupt)
+
+	fmt.Printf("%sWatching%s %s %s every 30s. Press Ctrl+C to stop.\n",
+		color.Gray, color.Reset, symbol, strings.ToUpper(interval),
+	)
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	var previous *bool
+	for {
+		if err := checkIndicator(symbol, interval, client, &previous); err != nil {
+			fmt.Fprintf(os.Stderr, "%s%s%s\n", color.Red, err, color.Reset)
+		}
+
+		select {
+		case <-ticker.C:
+			continue
+		case <-interrupt:
+			fmt.Printf("\n%sStopped watch.%s\n", color.Gray, color.Reset)
+			return nil
+		}
+	}
+}
+
+func loadDotenv(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+
+		key = strings.TrimSpace(key)
+		if key == "" || os.Getenv(key) != "" {
+			continue
+		}
+
+		value = strings.TrimSpace(value)
+		value = strings.Trim(value, `"'`)
+		_ = os.Setenv(key, value)
+	}
+}
+
+func checkIndicator(symbol, interval string, client notify.Telegram, previous **bool) error {
+	candles, err := exchange.FetchBybit(symbol, interval, 2)
+	if err != nil {
+		return err
+	}
+	if len(candles) == 0 {
+		return fmt.Errorf("no data for %s", symbol)
+	}
+
+	latest := candles[len(candles)-1]
+	state := latest.IsBull
+	label := indicatorLabel(state)
+	timestamp := latest.Timestamp.Local().Format("Jan 02 3:04PM")
+
+	if *previous == nil {
+		*previous = &state
+		fmt.Printf("%s[%s]%s %s %s baseline: %s at %.2f\n",
+			color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
+			symbol, strings.ToUpper(interval), label, latest.Close,
+		)
+		return nil
+	}
+
+	if **previous == state {
+		fmt.Printf("%s[%s]%s %s %s still %s at %.2f\n",
+			color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
+			symbol, strings.ToUpper(interval), label, latest.Close,
+		)
+		return nil
+	}
+
+	oldLabel := indicatorLabel(**previous)
+	message := fmt.Sprintf(
+		"%s %s changed: %s -> %s\nPrice: %.2f\nCandle: %s",
+		symbol,
+		strings.ToUpper(interval),
+		oldLabel,
+		label,
+		latest.Close,
+		timestamp,
+	)
+
+	if err := client.Send(message); err != nil {
+		return err
+	}
+
+	*previous = &state
+	fmt.Printf("%s[%s]%s notified: %s -> %s at %.2f\n",
+		color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
+		oldLabel, label, latest.Close,
+	)
+	return nil
+}
+
+func indicatorLabel(isBull bool) string {
+	if isBull {
+		return "BULLISH"
+	}
+	return "BEARISH"
 }
 
 func fullWidthCandles() int {

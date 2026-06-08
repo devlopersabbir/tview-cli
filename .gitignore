@@ -8,6 +8,9 @@ dist/
 *.out
 coverage.html
 
+# Local secrets
+.env
+
 # OS
 .DS_Store
 Thumbs.db
