@@ -19,4 +19,5 @@ const (
 	ChartHeight  = 18
 	VolumeHeight = 4
 	NumCandles   = 60
+	MaxCandles   = 1000
 )

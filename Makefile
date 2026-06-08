@@ -16,7 +16,7 @@ build:
 
 ## run: Build and run with example args (edit as needed)
 run: build
-	./$(BINARY) eth 1h
+	./$(BINARY) btc 15m
 
 ## tidy: Tidy go modules
 tidy:

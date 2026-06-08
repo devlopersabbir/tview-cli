@@ -58,12 +58,19 @@ type bybitResponse struct {
 	} `json:"result"`
 }
 
-// FetchBybit retrieves the latest candlestick data for a given symbol and interval
-// from the Bybit Spot market. Returns candles ordered oldest → newest.
-func FetchBybit(symbol, interval string) ([]model.Candle, error) {
+// FetchBybit retrieves candlestick data for a given symbol and interval from
+// the Bybit Spot market. Returns candles ordered oldest → newest.
+func FetchBybit(symbol, interval string, limit int) ([]model.Candle, error) {
+	if limit <= 0 {
+		limit = model.NumCandles
+	}
+	if limit > model.MaxCandles {
+		limit = model.MaxCandles
+	}
+
 	url := fmt.Sprintf(
 		"%s?category=spot&symbol=%s&interval=%s&limit=%d",
-		bybitBaseURL, symbol, intervalToBybit(interval), model.NumCandles,
+		bybitBaseURL, symbol, intervalToBybit(interval), limit,
 	)
 
 	resp, err := http.Get(url) //nolint:noctx // simple CLI, no context needed

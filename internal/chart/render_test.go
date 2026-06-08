@@ -1,6 +1,11 @@
 package chart
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"github.com/devlopersabbir/tview-cli/internal/model"
+)
 
 func TestCompactNumber(t *testing.T) {
 	tests := []struct {
@@ -20,5 +25,47 @@ func TestCompactNumber(t *testing.T) {
 				t.Fatalf("compactNumber(%v) = %q, want %q", tt.value, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTimeAxisLabel(t *testing.T) {
+	candle := model.Candle{
+		Timestamp: time.Date(2026, time.June, 8, 14, 37, 0, 0, time.UTC),
+	}
+
+	tests := []struct {
+		name     string
+		interval string
+		want     string
+	}{
+		{name: "minute interval", interval: "15m", want: "2:37PM"},
+		{name: "hour interval", interval: "4h", want: "2PM"},
+		{name: "daily interval", interval: "1d", want: "Mon"},
+		{name: "weekly interval", interval: "w", want: "Mon"},
+		{name: "monthly interval", interval: "1m_month", want: "Jun"},
+		{name: "fallback interval", interval: "custom", want: "06/08"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := timeAxisLabel(tt.interval, candle); got != tt.want {
+				t.Fatalf("timeAxisLabel(%q) = %q, want %q", tt.interval, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTimeAxisLabelsStayWithinCandleWidth(t *testing.T) {
+	candles := make([]model.Candle, 16)
+	for i := range candles {
+		candles[i].Timestamp = time.Date(2026, time.June, 8, 14, i, 0, 0, time.UTC)
+	}
+
+	got := timeAxisLabels("15m", candles)
+	if len(got) != len(candles) {
+		t.Fatalf("len(timeAxisLabels) = %d, want %d", len(got), len(candles))
+	}
+	if got != "2:00PM    2:15PM" {
+		t.Fatalf("timeAxisLabels = %q, want %q", got, "2:00PM    2:15PM")
 	}
 }

@@ -45,6 +45,60 @@ func compactNumber(value float64) string {
 	return fmt.Sprintf("%.2f", value)
 }
 
+// timeAxisLabel formats x-axis labels to match the selected candle interval.
+func timeAxisLabel(interval string, c model.Candle) string {
+	switch strings.ToLower(interval) {
+	case "1m", "3m", "5m", "15m", "30m":
+		return c.Timestamp.Format("3:04PM")
+	case "1h", "2h", "4h", "6h", "12h":
+		return c.Timestamp.Format("3PM")
+	case "1d", "d", "1w", "w":
+		return c.Timestamp.Format("Mon")
+	case "1m_month":
+		return c.Timestamp.Format("Jan")
+	default:
+		return c.Timestamp.Format("01/02")
+	}
+}
+
+func timeAxisLabels(interval string, candles []model.Candle) string {
+	axis := strings.Repeat(" ", len(candles))
+	if len(candles) == 0 {
+		return axis
+	}
+
+	lastLabel := timeAxisLabel(interval, candles[len(candles)-1])
+	lastStart := -1
+	if len(lastLabel) <= len(axis) {
+		lastStart = len(axis) - len(lastLabel)
+	}
+
+	nextFree := 0
+
+	for i, c := range candles {
+		if i < nextFree {
+			continue
+		}
+
+		label := timeAxisLabel(interval, c)
+		if i+len(label) > len(axis) {
+			break
+		}
+		if lastStart >= 0 && i+len(label) >= lastStart {
+			break
+		}
+
+		axis = axis[:i] + label + axis[i+len(label):]
+		nextFree = i + len(label) + 1
+	}
+
+	if lastStart >= 0 {
+		axis = axis[:lastStart] + lastLabel
+	}
+
+	return axis
+}
+
 // priceToRowFunc returns a closure that maps a price to a chart row index.
 func priceToRowFunc(maxPrice, priceRange float64) func(float64) int {
 	return func(p float64) int {
@@ -205,17 +259,7 @@ func Print(symbol, interval string, candles []model.Candle) {
 	fmt.Printf("%s\n", color.Reset)
 
 	fmt.Printf("%s           %s", color.Gray, color.Reset)
-	skip := 0
-	for _, c := range candles {
-		if skip == 0 {
-			ts := c.Timestamp.Format("01/02")
-			fmt.Printf("%s%s%s", color.Gray, ts, color.Reset)
-			skip = len(ts) - 1
-		} else {
-			fmt.Print(" ")
-			skip--
-		}
-	}
+	fmt.Printf("%s%s%s", color.Gray, timeAxisLabels(interval, candles), color.Reset)
 	fmt.Println()
 
 	// ── Footer ────────────────────────────────────────────────────────────

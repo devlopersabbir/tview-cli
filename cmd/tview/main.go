@@ -10,11 +10,14 @@ import (
 	"os"
 	"strings"
 
+	"golang.org/x/term"
+
 	"github.com/spf13/cobra"
 
 	"github.com/devlopersabbir/tview-cli/internal/chart"
 	"github.com/devlopersabbir/tview-cli/internal/color"
 	"github.com/devlopersabbir/tview-cli/internal/exchange"
+	"github.com/devlopersabbir/tview-cli/internal/model"
 )
 
 // Build-time variables injected by GoReleaser / ldflags.
@@ -31,6 +34,9 @@ func main() {
 }
 
 func newRootCmd() *cobra.Command {
+	var full bool
+	var box bool
+
 	root := &cobra.Command{
 		Use:     "tview [symbol] [interval]",
 		Short:   "Terminal candlestick chart viewer — powered by Bybit",
@@ -47,24 +53,38 @@ func newRootCmd() *cobra.Command {
 		Example: `  tview eth 15m
   tview btc 4h
   tview SOLUSDT 1h
-  tview ada 1d`,
+  tview ada 1d
+  tview btc 15m --full
+  tview btc 15m --box`,
 		Args: cobra.ExactArgs(2),
-		RunE: runChart,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if full && box {
+				return fmt.Errorf("--full and --box cannot be used together")
+			}
+			return runChart(cmd, args, full)
+		},
 	}
 
+	root.Flags().BoolVar(&full, "full", false, "use the full terminal width for the chart")
+	root.Flags().BoolVar(&box, "box", false, "use the default boxed chart width")
 	root.SetVersionTemplate(versionOutput())
 	root.AddCommand(newVersionCmd())
 	return root
 }
 
-func runChart(_ *cobra.Command, args []string) error {
+func runChart(_ *cobra.Command, args []string, full bool) error {
 	symbol := strings.ToUpper(args[0])
 	if !strings.HasSuffix(symbol, "USDT") {
 		symbol += "USDT"
 	}
 	interval := args[1]
 
-	candles, err := exchange.FetchBybit(symbol, interval)
+	limit := model.NumCandles
+	if full {
+		limit = fullWidthCandles()
+	}
+
+	candles, err := exchange.FetchBybit(symbol, interval, limit)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s❌  %v%s\n", color.Red, err, color.Reset)
 		return err
@@ -76,6 +96,24 @@ func runChart(_ *cobra.Command, args []string) error {
 
 	chart.Print(symbol, interval, candles)
 	return nil
+}
+
+func fullWidthCandles() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width <= 0 {
+		return model.NumCandles
+	}
+
+	// Price column and separators take most of the non-chart space. Keep this
+	// slightly generous so --full visually reaches the terminal edge.
+	candles := width - 10
+	if candles < model.NumCandles {
+		return model.NumCandles
+	}
+	if candles > model.MaxCandles {
+		return model.MaxCandles
+	}
+	return candles
 }
 
 func newVersionCmd() *cobra.Command {
