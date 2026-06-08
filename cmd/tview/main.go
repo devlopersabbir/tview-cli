@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"html"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"strings"
 	"time"
 
@@ -42,6 +44,7 @@ func newRootCmd() *cobra.Command {
 	var full bool
 	var box bool
 	var watch bool
+	var update bool
 
 	root := &cobra.Command{
 		Use:     "tview [symbol] [interval]",
@@ -63,8 +66,16 @@ func newRootCmd() *cobra.Command {
   tview btc 15m --full
   tview btc 15m --box
   tview btc 15m --watch`,
-		Args: cobra.ExactArgs(2),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if update && len(args) == 0 {
+				return nil
+			}
+			return cobra.ExactArgs(2)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if update {
+				return runUpdate()
+			}
 			if full && box {
 				return fmt.Errorf("--full and --box cannot be used together")
 			}
@@ -75,6 +86,7 @@ func newRootCmd() *cobra.Command {
 	root.Flags().BoolVar(&full, "full", false, "use the full terminal width for the chart")
 	root.Flags().BoolVar(&box, "box", false, "use the default boxed chart width")
 	root.Flags().BoolVar(&watch, "watch", false, "watch for bullish/bearish changes and notify Telegram")
+	root.Flags().BoolVar(&update, "update", false, "update tview to the latest release")
 	root.SetVersionTemplate(versionOutput())
 	root.AddCommand(newVersionCmd())
 	return root
@@ -392,4 +404,40 @@ func versionOutput() string {
 		date,
 		color.Green+color.Bold, color.Reset,
 	)
+}
+
+func runUpdate() error {
+	exe, _ := os.Executable()
+	if shouldUseHomebrewUpdater(exe) {
+		return runUpdateCommand("brew", "reinstall", "--cask", "devlopersabbir/tview-cli/tview")
+	}
+
+	switch runtime.GOOS {
+	case "darwin", "linux":
+		return runUpdateCommand("sh", "-c", "curl -fsSL https://raw.githubusercontent.com/devlopersabbir/tview-cli/main/scripts/install.sh | sh")
+	case "windows":
+		return runUpdateCommand("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "iwr https://raw.githubusercontent.com/devlopersabbir/tview-cli/main/scripts/install.ps1 -UseBasicParsing | iex")
+	default:
+		return fmt.Errorf("self-update is not supported on %s; download the latest release from https://github.com/devlopersabbir/tview-cli/releases", runtime.GOOS)
+	}
+}
+
+func shouldUseHomebrewUpdater(exe string) bool {
+	if runtime.GOOS != "darwin" || exe == "" {
+		return false
+	}
+	if !strings.Contains(exe, "/homebrew/") && !strings.HasPrefix(exe, "/usr/local/") {
+		return false
+	}
+	_, err := exec.LookPath("brew")
+	return err == nil
+}
+
+func runUpdateCommand(name string, args ...string) error {
+	fmt.Printf("%sUpdating tview...%s\n", color.Gray, color.Reset)
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
 }

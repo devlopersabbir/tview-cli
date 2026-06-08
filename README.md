@@ -133,8 +133,17 @@ tview ada 1d
 ### Version
 
 ```bash
+tview --version
 tview version
 ```
+
+### Update
+
+```bash
+tview --update
+```
+
+On macOS Homebrew installs, `tview --update` reinstalls the latest cask. Manual installs use the install script and replace the existing binary in place.
 
 ## Author
 
