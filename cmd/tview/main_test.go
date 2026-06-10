@@ -49,6 +49,42 @@ func TestLoadDotenv(t *testing.T) {
 	}
 }
 
+func TestResolveMarketCryptoAddsUSDT(t *testing.T) {
+	got, err := resolveMarket("btc", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.DisplaySymbol != "BTCUSDT" || got.BybitSymbol != "BTCUSDT" {
+		t.Fatalf("resolveMarket crypto = %+v, want BTCUSDT display/bybit", got)
+	}
+}
+
+func TestResolveMarketForexXAU(t *testing.T) {
+	tests := []string{"xau", "xauusd", "XAU/USD"}
+	for _, symbol := range tests {
+		t.Run(symbol, func(t *testing.T) {
+			got, err := resolveMarket(symbol, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got.DisplaySymbol != "XAUUSD" {
+				t.Fatalf("DisplaySymbol = %q, want XAUUSD", got.DisplaySymbol)
+			}
+			if got.BybitSymbol != "XAUTUSDT" {
+				t.Fatalf("BybitSymbol = %q, want XAUTUSDT", got.BybitSymbol)
+			}
+		})
+	}
+}
+
+func TestResolveMarketForexRejectsUnsupportedSymbol(t *testing.T) {
+	if _, err := resolveMarket("eurusd", true); err == nil {
+		t.Fatal("resolveMarket accepted unsupported forex symbol")
+	}
+}
+
 func TestIndicatorMessage(t *testing.T) {
 	message := indicatorMessage(
 		"BTCUSDT",

@@ -18,6 +18,7 @@ BTCUSDT  |  1H ▲ 67,420.00
 - Volume bars for each candle
 - Time axis with date labels
 - High and low markers
+- Forex-style gold shortcut with `xau` / `xauusd`
 - ANSI color output for bullish and bearish candles
 - Zero config, using Bybit public market data
 
@@ -128,7 +129,13 @@ tview btc 1h
 tview eth 15m
 tview SOLUSDT 4h
 tview ada 1d
+tview xau 5m --forex
+tview xau 1m --forex --watch
+tview xau 1m --fw
 ```
+
+`--forex` (or `-f`) maps `xau` / `xauusd` to a public gold market feed and displays it as `XAUUSD`.
+`--fw` is a shortcut for `--forex --watch`.
 
 ### Version
 

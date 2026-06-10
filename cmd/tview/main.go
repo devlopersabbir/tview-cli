@@ -44,6 +44,8 @@ func newRootCmd() *cobra.Command {
 	var full bool
 	var box bool
 	var watch bool
+	var forex bool
+	var forexWatch bool
 	var update bool
 
 	root := &cobra.Command{
@@ -65,7 +67,9 @@ func newRootCmd() *cobra.Command {
   tview ada 1d
   tview btc 15m --full
   tview btc 15m --box
-  tview btc 15m --watch`,
+  tview btc 15m --watch
+  tview xau 5m --forex
+  tview xau 1m --fw`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if update && len(args) == 0 {
 				return nil
@@ -79,23 +83,29 @@ func newRootCmd() *cobra.Command {
 			if full && box {
 				return fmt.Errorf("--full and --box cannot be used together")
 			}
-			return runChart(cmd, args, full, watch)
+			if forexWatch {
+				forex = true
+				watch = true
+			}
+			return runChart(cmd, args, full, watch, forex)
 		},
 	}
 
 	root.Flags().BoolVar(&full, "full", false, "use the full terminal width for the chart")
 	root.Flags().BoolVar(&box, "box", false, "use the default boxed chart width")
 	root.Flags().BoolVar(&watch, "watch", false, "watch for bullish/bearish changes and notify Telegram")
+	root.Flags().BoolVarP(&forex, "forex", "f", false, "use forex/metal symbol mapping, e.g. xau -> XAUUSD")
+	root.Flags().BoolVar(&forexWatch, "fw", false, "shortcut for --forex --watch")
 	root.Flags().BoolVar(&update, "update", false, "update tview to the latest release")
 	root.SetVersionTemplate(versionOutput())
 	root.AddCommand(newVersionCmd())
 	return root
 }
 
-func runChart(_ *cobra.Command, args []string, full, watch bool) error {
-	symbol := strings.ToUpper(args[0])
-	if !strings.HasSuffix(symbol, "USDT") {
-		symbol += "USDT"
+func runChart(_ *cobra.Command, args []string, full, watch, forex bool) error {
+	market, err := resolveMarket(args[0], forex)
+	if err != nil {
+		return err
 	}
 	interval := args[1]
 
@@ -105,24 +115,50 @@ func runChart(_ *cobra.Command, args []string, full, watch bool) error {
 	}
 
 	if watch {
-		return watchIndicator(symbol, interval)
+		return watchIndicator(market, interval)
 	}
 
-	candles, err := exchange.FetchBybit(symbol, interval, limit)
+	candles, err := fetchMarketCandles(market, interval, limit)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s❌  %v%s\n", color.Red, err, color.Reset)
 		return err
 	}
 	if len(candles) == 0 {
 		fmt.Fprintf(os.Stderr, "%s❌  No data returned. Check symbol name.%s\n", color.Red, color.Reset)
-		return fmt.Errorf("no data for %s", symbol)
+		return fmt.Errorf("no data for %s", market.DisplaySymbol)
 	}
 
-	chart.Print(symbol, interval, candles)
+	chart.Print(market.DisplaySymbol, interval, candles)
 	return nil
 }
 
-func watchIndicator(symbol, interval string) error {
+type marketRequest struct {
+	DisplaySymbol string
+	BybitSymbol   string
+}
+
+func resolveMarket(rawSymbol string, forex bool) (marketRequest, error) {
+	symbol := strings.ToUpper(strings.ReplaceAll(rawSymbol, "/", ""))
+	if forex {
+		switch symbol {
+		case "XAU", "XAUUSD":
+			return marketRequest{DisplaySymbol: "XAUUSD", BybitSymbol: "XAUTUSDT"}, nil
+		default:
+			return marketRequest{}, fmt.Errorf("--forex currently supports xau or xauusd")
+		}
+	}
+
+	if !strings.HasSuffix(symbol, "USDT") {
+		symbol += "USDT"
+	}
+	return marketRequest{DisplaySymbol: symbol, BybitSymbol: symbol}, nil
+}
+
+func fetchMarketCandles(market marketRequest, interval string, limit int) ([]model.Candle, error) {
+	return exchange.FetchBybit(market.BybitSymbol, interval, limit)
+}
+
+func watchIndicator(market marketRequest, interval string) error {
 	loadDotenv(".env")
 
 	client := notify.Telegram{
@@ -138,7 +174,7 @@ func watchIndicator(symbol, interval string) error {
 	defer signal.Stop(interrupt)
 
 	fmt.Printf("%sWatching%s %s %s every 30s. Press Ctrl+C to stop.\n",
-		color.Gray, color.Reset, symbol, strings.ToUpper(interval),
+		color.Gray, color.Reset, market.DisplaySymbol, strings.ToUpper(interval),
 	)
 
 	ticker := time.NewTicker(30 * time.Second)
@@ -146,7 +182,7 @@ func watchIndicator(symbol, interval string) error {
 
 	var state indicatorWatchState
 	for {
-		if err := checkIndicator(symbol, interval, client, &state); err != nil {
+		if err := checkIndicator(market, interval, client, &state); err != nil {
 			fmt.Fprintf(os.Stderr, "%s%s%s\n", color.Red, err, color.Reset)
 		}
 
@@ -204,22 +240,22 @@ func loadDotenv(path string) {
 	}
 }
 
-func checkIndicator(symbol, interval string, client notify.Telegram, state *indicatorWatchState) error {
-	candles, err := exchange.FetchBybit(symbol, interval, model.NumCandles)
+func checkIndicator(market marketRequest, interval string, client notify.Telegram, state *indicatorWatchState) error {
+	candles, err := fetchMarketCandles(market, interval, model.NumCandles)
 	if err != nil {
 		return err
 	}
 	if len(candles) < 2 {
-		return fmt.Errorf("not enough data for %s", symbol)
+		return fmt.Errorf("not enough data for %s", market.DisplaySymbol)
 	}
 
 	marker, ok := latestClosedMarker(candles)
 	if !ok {
-		return fmt.Errorf("no closed marker data for %s", symbol)
+		return fmt.Errorf("no closed marker data for %s", market.DisplaySymbol)
 	}
 	closed, ok := latestClosedCandle(candles)
 	if !ok {
-		return fmt.Errorf("not enough data for %s", symbol)
+		return fmt.Errorf("not enough data for %s", market.DisplaySymbol)
 	}
 	signal := marker.Signal
 	label := indicatorSignalLabel(signal)
@@ -231,7 +267,7 @@ func checkIndicator(symbol, interval string, client notify.Telegram, state *indi
 		state.markerTime = marker.Candle.Timestamp
 		fmt.Printf("%s[%s]%s %s %s baseline marker: %s at %.2f (%s)\n",
 			color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
-			symbol, strings.ToUpper(interval), label, marker.Candle.Close, timestamp,
+			market.DisplaySymbol, strings.ToUpper(interval), label, marker.Candle.Close, timestamp,
 		)
 		return nil
 	}
@@ -239,7 +275,7 @@ func checkIndicator(symbol, interval string, client notify.Telegram, state *indi
 	if !marker.Candle.Timestamp.After(state.markerTime) {
 		fmt.Printf("%s[%s]%s %s %s marker still %s at %.2f (%s); latest closed %.2f\n",
 			color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
-			symbol, strings.ToUpper(interval), label, marker.Candle.Close, timestamp, closed.Close,
+			market.DisplaySymbol, strings.ToUpper(interval), label, marker.Candle.Close, timestamp, closed.Close,
 		)
 		return nil
 	}
@@ -248,19 +284,19 @@ func checkIndicator(symbol, interval string, client notify.Telegram, state *indi
 		state.markerTime = marker.Candle.Timestamp
 		fmt.Printf("%s[%s]%s %s %s new marker but still %s at %.2f (%s)\n",
 			color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
-			symbol, strings.ToUpper(interval), label, marker.Candle.Close, timestamp,
+			market.DisplaySymbol, strings.ToUpper(interval), label, marker.Candle.Close, timestamp,
 		)
 		return nil
 	}
 
 	oldLabel := indicatorSignalLabel(state.signal)
-	message := indicatorMessage(symbol, interval, oldLabel, label, marker.Candle, timestamp)
-	preview, err := chart.RenderPNG(symbol, interval, candles)
+	message := indicatorMessage(market.DisplaySymbol, interval, oldLabel, label, marker.Candle, timestamp)
+	preview, err := chart.RenderPNG(market.DisplaySymbol, interval, candles)
 	if err != nil {
 		return fmt.Errorf("render chart preview: %w", err)
 	}
 
-	if err := client.SendPhoto(fmt.Sprintf("%s-%s.png", symbol, strings.ToLower(interval)), preview, message); err != nil {
+	if err := client.SendPhoto(fmt.Sprintf("%s-%s.png", market.DisplaySymbol, strings.ToLower(interval)), preview, message); err != nil {
 		return err
 	}
 
