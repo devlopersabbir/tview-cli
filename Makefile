@@ -1,5 +1,6 @@
 BINARY     := tview
 CMD        := ./cmd/tview
+INSTALL_DIR ?= $(HOME)/.local/bin
 VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE       := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -8,11 +9,17 @@ LDFLAGS    := -s -w \
               -X main.commit=$(COMMIT) \
               -X main.date=$(DATE)
 
-.PHONY: all build run clean lint tidy test snapshot
+.PHONY: all build run install-local clean lint tidy test snapshot
 
 ## build: Compile the binary for the current platform
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) $(CMD)
+
+## install-local: Build and install tview to ~/.local/bin
+install-local: build
+	mkdir -p $(INSTALL_DIR)
+	install -m 0755 $(BINARY) $(INSTALL_DIR)/$(BINARY)
+	@echo "Installed $(BINARY) to $(INSTALL_DIR)/$(BINARY)"
 
 ## run: Build and run with example args (edit as needed)
 run: build

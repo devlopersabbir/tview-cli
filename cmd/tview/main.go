@@ -93,7 +93,7 @@ func newRootCmd() *cobra.Command {
 
 	root.Flags().BoolVar(&full, "full", false, "use the full terminal width for the chart")
 	root.Flags().BoolVar(&box, "box", false, "use the default boxed chart width")
-	root.Flags().BoolVar(&watch, "watch", false, "watch for bullish/bearish changes and notify Telegram")
+	root.Flags().BoolVar(&watch, "watch", false, "watch bullish/bearish changes in the terminal; notify Telegram when configured")
 	root.Flags().BoolVarP(&forex, "forex", "f", false, "use forex/metal symbol mapping, e.g. xau -> XAUUSD")
 	root.Flags().BoolVar(&forexWatch, "fw", false, "shortcut for --forex --watch")
 	root.Flags().BoolVar(&update, "update", false, "update tview to the latest release")
@@ -165,9 +165,7 @@ func watchIndicator(market marketRequest, interval string) error {
 		Token:  os.Getenv("TELEGRAM_BOT_TOKEN"),
 		ChatID: os.Getenv("TELEGRAM_CHAT_ID"),
 	}
-	if client.Token == "" || client.ChatID == "" {
-		return fmt.Errorf("set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID before using --watch")
-	}
+	telegramEnabled := client.Token != "" && client.ChatID != ""
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
@@ -176,13 +174,18 @@ func watchIndicator(market marketRequest, interval string) error {
 	fmt.Printf("%sWatching%s %s %s every 30s. Press Ctrl+C to stop.\n",
 		color.Gray, color.Reset, market.DisplaySymbol, strings.ToUpper(interval),
 	)
+	if telegramEnabled {
+		fmt.Printf("%sTelegram notifications enabled.%s\n", color.Gray, color.Reset)
+	} else {
+		fmt.Printf("%sTelegram notifications disabled; set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to enable them.%s\n", color.Gray, color.Reset)
+	}
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	var state indicatorWatchState
 	for {
-		if err := checkIndicator(market, interval, client, &state); err != nil {
+		if err := checkIndicator(market, interval, client, telegramEnabled, &state); err != nil {
 			fmt.Fprintf(os.Stderr, "%s%s%s\n", color.Red, err, color.Reset)
 		}
 
@@ -240,7 +243,7 @@ func loadDotenv(path string) {
 	}
 }
 
-func checkIndicator(market marketRequest, interval string, client notify.Telegram, state *indicatorWatchState) error {
+func checkIndicator(market marketRequest, interval string, client notify.Telegram, telegramEnabled bool, state *indicatorWatchState) error {
 	candles, err := fetchMarketCandles(market, interval, model.NumCandles)
 	if err != nil {
 		return err
@@ -290,21 +293,28 @@ func checkIndicator(market marketRequest, interval string, client notify.Telegra
 	}
 
 	oldLabel := indicatorSignalLabel(state.signal)
-	message := indicatorMessage(market.DisplaySymbol, interval, oldLabel, label, marker.Candle, timestamp)
-	preview, err := chart.RenderPNG(market.DisplaySymbol, interval, candles)
-	if err != nil {
-		return fmt.Errorf("render chart preview: %w", err)
-	}
 
-	if err := client.SendPhoto(fmt.Sprintf("%s-%s.png", market.DisplaySymbol, strings.ToLower(interval)), preview, message); err != nil {
-		return err
+	if telegramEnabled {
+		message := indicatorMessage(market.DisplaySymbol, interval, oldLabel, label, marker.Candle, timestamp)
+		preview, err := chart.RenderPNG(market.DisplaySymbol, interval, candles)
+		if err != nil {
+			return fmt.Errorf("render chart preview: %w", err)
+		}
+
+		if err := client.SendPhoto(fmt.Sprintf("%s-%s.png", market.DisplaySymbol, strings.ToLower(interval)), preview, message); err != nil {
+			return err
+		}
 	}
 
 	state.signal = signal
 	state.markerTime = marker.Candle.Timestamp
-	fmt.Printf("%s[%s]%s notified yellow marker: %s -> %s at %.2f (%s)\n",
+	status := "indicator changed"
+	if telegramEnabled {
+		status = "notified indicator change"
+	}
+	fmt.Printf("%s[%s]%s %s: %s -> %s at %.2f (%s)\n",
 		color.Gray, time.Now().Format("3:04:05PM"), color.Reset,
-		oldLabel, label, marker.Candle.Close, timestamp,
+		status, oldLabel, label, marker.Candle.Close, timestamp,
 	)
 	return nil
 }
