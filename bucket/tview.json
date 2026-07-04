@@ -1,18 +1,22 @@
 {
-  "version": "0.0.75",
-  "architecture": {
-    "64bit": {
-      "url": "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.75/tview_windows_amd64.zip",
-      "bin": ["tview.exe"],
-      "hash": "6890d9cd9fa7625b9953f83cf163af612ff3d192b730a44f082d2bedad52dcbe"
+    "version": "0.0.76",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.76/tview_windows_amd64.zip",
+            "bin": [
+                "tview.exe"
+            ],
+            "hash": "ee7465e741627a7bdf774e6f04bb9ad15c0a379236e72839c645e1bb9b52f2ce"
+        },
+        "arm64": {
+            "url": "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.76/tview_windows_arm64.zip",
+            "bin": [
+                "tview.exe"
+            ],
+            "hash": "2af01d0a83b8e99a9653c8655aecc569221adcf8dfc7349e20e4469b6d1b0bd4"
+        }
     },
-    "arm64": {
-      "url": "https://github.com/devlopersabbir/tview-cli/releases/download/v0.0.75/tview_windows_arm64.zip",
-      "bin": ["tview.exe"],
-      "hash": "61e5ad23b3fef01eda75c84e0c0f24508728cbf6ffd47e79d735a486e3e7196d"
-    }
-  },
-  "homepage": "https://github.com/devlopersabbir/tview-cli",
-  "license": "MIT",
-  "description": "Terminal candlestick chart viewer powered by Bybit market data."
+    "homepage": "https://github.com/devlopersabbir/tview-cli",
+    "license": "MIT",
+    "description": "Terminal candlestick chart viewer powered by Bybit market data."
 }
